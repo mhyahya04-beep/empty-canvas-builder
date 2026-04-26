@@ -1,7 +1,7 @@
-import { Route as RootRoute } from '@/routes/__root';
+import { Route as TanStackRoute } from '@tanstack/react-router';
 import { AppShell } from '@/components/app-shell';
 
-export const Route = new RootRoute({
+export const Route = new TanStackRoute({
   id: '/settings',
   path: '/settings',
   component: () => {
@@ -24,4 +24,4 @@ export const Route = new RootRoute({
       </AppShell>
     );
   },
-});
+} as any);
