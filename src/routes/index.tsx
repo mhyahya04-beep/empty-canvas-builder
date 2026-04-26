@@ -1,11 +1,10 @@
-import { Route as RootRoute } from '@/routes/__root';
+import { createFileRoute } from '@tanstack/react-router';
 import { AppShell } from '@/components/app-shell';
 import { BlocksList } from '@/components/blocks/BlockRenderer';
 import { UrgentList } from '@/components/urgent-list';
 import { BookOpen, Sparkles, FolderOpen, Database, FileText, Zap } from 'lucide-react';
 
-export const Route = new RootRoute({
-  id: '/',
+export const Route = createFileRoute('/')({
   component: HomePage,
 });
 

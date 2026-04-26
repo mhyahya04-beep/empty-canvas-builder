@@ -1,9 +1,7 @@
-import { Route as RootRoute } from '@/routes/__root';
+import { createFileRoute } from '@tanstack/react-router';
 import { AppShell } from '@/components/app-shell';
 
-export const Route = new RootRoute({
-  id: '/settings',
-  path: '/settings',
+export const Route = createFileRoute('/settings')({
   component: () => {
     return (
       <AppShell>

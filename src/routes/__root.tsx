@@ -1,4 +1,5 @@
-import { RootRoute } from '@tanstack/react-router';
+import { Outlet, RootRoute } from '@tanstack/react-router';
 
-// Cast options to any to avoid strict type mismatch from generated route tree.
-export const Route = new RootRoute({ id: '__root__' } as any);
+export const Route = new RootRoute({
+  component: Outlet,
+} as any);
