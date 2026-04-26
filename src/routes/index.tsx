@@ -5,7 +5,6 @@ import { UrgentList } from '@/components/urgent-list';
 import { BookOpen, Sparkles, FolderOpen, Database, FileText, Zap } from 'lucide-react';
 
 export const Route = new TanStackRoute({
-  id: '/',
   component: HomePage,
 } as any);
 
