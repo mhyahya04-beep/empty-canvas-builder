@@ -14,4 +14,4 @@ export const Route = createFileRoute('/items/$itemId')({
       </AppShell>
     );
   },
-} as any);
+});
