@@ -1,4 +1,4 @@
-import { Route as RootRoute } from '@/routes/__root';
+import { Route as TanStackRoute } from '@tanstack/react-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '@/lib/db/db';
 import { ensureSeed, createRecord, getWorkspaces, getDefaultTableForWorkspace, getFieldsForTable, getRecordsForTable, deleteRecord, duplicateRecord, getViewsForTable, createView } from '@/lib/storage';
@@ -47,7 +47,7 @@ function Toolbar({ onAdd, onSearch, search, views, onSelectView, viewType, setVi
   );
 }
 
-export const Route = new RootRoute({
+export const Route = new TanStackRoute({
   id: '/records',
   path: '/records',
   component: () => {
@@ -219,4 +219,4 @@ export const Route = new RootRoute({
       </AppShell>
     );
   },
-});
+} as any);
