@@ -1,9 +1,9 @@
-import { Route as RootRoute } from '@/routes/__root';
+import { Route as TanStackRoute } from '@tanstack/react-router';
 import { AppShell } from '@/components/app-shell';
 import React from 'react';
 import { DocumentEditor } from '@/components/document-editor';
 
-export const Route = new RootRoute({
+export const Route = new TanStackRoute({
   id: '/items/$itemId',
   path: '/items/:itemId',
   component: ({ params }: any) => {
@@ -16,4 +16,4 @@ export const Route = new RootRoute({
       </AppShell>
     );
   },
-});
+} as any);
