@@ -4,7 +4,6 @@ import React from 'react';
 import { DocumentEditor } from '@/components/document-editor';
 
 export const Route = new TanStackRoute({
-  id: '/items/$itemId',
   path: '/items/:itemId',
   component: ({ params }: any) => {
     const { itemId } = params as { itemId: string };
