@@ -11,10 +11,13 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": false,
-    "baseUrl": "./",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }
