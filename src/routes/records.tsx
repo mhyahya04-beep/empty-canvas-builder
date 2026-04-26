@@ -48,7 +48,6 @@ function Toolbar({ onAdd, onSearch, search, views, onSelectView, viewType, setVi
 }
 
 export const Route = new TanStackRoute({
-  id: '/records',
   path: '/records',
   component: () => {
     const { toast } = useToast();
