@@ -2,7 +2,6 @@ import { Route as TanStackRoute } from '@tanstack/react-router';
 import { AppShell } from '@/components/app-shell';
 
 export const Route = new TanStackRoute({
-  id: '/settings',
   path: '/settings',
   component: () => {
     return (
