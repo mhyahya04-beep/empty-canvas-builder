@@ -1,4 +1,4 @@
-import { Route as TanStackRoute } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '@/lib/db/db';
 import { ensureSeed, createRecord, getWorkspaces, getDefaultTableForWorkspace, getFieldsForTable, getRecordsForTable, deleteRecord, duplicateRecord, getViewsForTable, createView } from '@/lib/storage';
@@ -47,8 +47,7 @@ function Toolbar({ onAdd, onSearch, search, views, onSelectView, viewType, setVi
   );
 }
 
-export const Route = new TanStackRoute({
-  path: '/records',
+export const Route = createFileRoute('/records')({
   component: () => {
     const { toast } = useToast();
     const [fields, setFields] = useState<any[]>([]);
@@ -218,4 +217,4 @@ export const Route = new TanStackRoute({
       </AppShell>
     );
   },
-} as any);
+});
