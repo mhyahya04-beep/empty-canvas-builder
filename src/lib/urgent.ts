@@ -70,12 +70,11 @@ function isFieldDeadlineSoon(field: Field, value: unknown): boolean {
 }
 
 export async function buildUrgentIndex(): Promise<UrgentItem[]> {
-  const [workspaces, tables, fields, records, docs] = await Promise.all([
+  const [workspaces, tables, fields, records] = await Promise.all([
     db.workspaces.toArray(),
     db.tablesStore.toArray(),
     db.fields.toArray(),
     db.records.toArray(),
-    db.documents.toArray(),
   ]);
 
   const workspaceById = new Map(workspaces.map((w) => [w.id, w]));
@@ -86,59 +85,100 @@ export async function buildUrgentIndex(): Promise<UrgentItem[]> {
     a.push(f);
     fieldsByWorkspace.set(f.workspaceId ?? "", a);
   }
-  const docByRecord = new Map(docs.map((d) => [d.recordId, d]));
 
   const out: UrgentItem[] = [];
 
   for (const r of records) {
     const wk = workspaceById.get(r.workspaceId ?? "");
-    const baseMeta: any = { sourceRef: { recordId: r.id }, createdAt: r.updatedAt ?? now(), sourceType: 'record' };
-    baseMeta.workspaceId = r.workspaceId; baseMeta.workspaceName = wk?.name;
-    baseMeta.tableId = r.tableId; baseMeta.tableName = tableById.get(r.tableId ?? "")?.name;
+    const tb = tableById.get(r.tableId ?? "");
+    
+    const baseSourceRef = { 
+      recordId: r.id, 
+      workspaceId: r.workspaceId, 
+      tableId: r.tableId 
+    };
 
     // per-record flag
-    if ((r as any).urgent) {
-      out.push({ id: `rec:${r.id}`, sourceType: 'record', sourceRef: { recordId: r.id }, message: r.title || 'Urgent record', priority: 2, createdAt: r.updatedAt ?? now() } as any);
+    if (r.urgent) {
+      out.push({ 
+        id: `rec:${r.id}`, 
+        sourceType: 'record', 
+        sourceRef: baseSourceRef, 
+        message: r.title || 'Urgent record', 
+        priority: 2, 
+        createdAt: r.updatedAt ?? now(),
+        workspaceName: wk?.name,
+        tableName: tb?.name
+      });
     }
 
     // field values
     const fs = fieldsByWorkspace.get(r.workspaceId ?? "") ?? [];
     for (const f of fs) {
-      const v = (r.values ?? {})[f.id];
+      const v = (r.fields ?? {})[f.id];
       if (v == null || v === "") continue;
+      
       if (fieldValueIsUrgent(f, v)) {
-        out.push({ id: `fv:${r.id}:${f.id}`, sourceType: 'property', sourceRef: { recordId: r.id, fieldId: f.id }, message: `${f.name}: Urgent`, priority: 2, createdAt: r.updatedAt ?? now() } as any);
+        out.push({ 
+          id: `fv:${r.id}:${f.id}`, 
+          sourceType: 'property', 
+          sourceRef: { ...baseSourceRef, fieldId: f.id }, 
+          message: `${f.name}: Urgent`, 
+          priority: 2, 
+          createdAt: r.updatedAt ?? now(),
+          workspaceName: wk?.name,
+          tableName: tb?.name
+        });
       }
+      
       if (isFieldDeadlineSoon(f, v)) {
-        out.push({ id: `dl:${r.id}:${f.id}`, sourceType: 'deadline', sourceRef: { recordId: r.id, fieldId: f.id }, message: `${f.name}: Due soon`, priority: 1, createdAt: r.updatedAt ?? now() } as any);
+        out.push({ 
+          id: `dl:${r.id}:${f.id}`, 
+          sourceType: 'deadline', 
+          sourceRef: { ...baseSourceRef, fieldId: f.id }, 
+          message: `${f.name}: Due soon`, 
+          priority: 1, 
+          createdAt: r.updatedAt ?? now(),
+          workspaceName: wk?.name,
+          tableName: tb?.name
+        });
       }
+      
       // cell object marker { urgent: true }
       if (typeof v === 'object' && v !== null && (v as any).urgent === true) {
-        out.push({ id: `cell:${r.id}:${f.id}`, sourceType: 'tableCell', sourceRef: { recordId: r.id, fieldId: f.id }, message: `${f.name}: Urgent`, priority: 2, createdAt: r.updatedAt ?? now() } as any);
+        out.push({ 
+          id: `cell:${r.id}:${f.id}`, 
+          sourceType: 'tableCell', 
+          sourceRef: { ...baseSourceRef, fieldId: f.id }, 
+          message: `${f.name}: Urgent`, 
+          priority: 2, 
+          createdAt: r.updatedAt ?? now(),
+          workspaceName: wk?.name,
+          tableName: tb?.name
+        });
       }
     }
 
     // document hits
-    const doc = docByRecord.get(r.id);
-    if (doc?.contentJson) {
+    if (r.documentContent) {
       const hits: { kind: string; text: string }[] = [];
-      walkDoc(doc.contentJson, hits);
+      walkDoc(r.documentContent, hits);
       hits.forEach((h, i) => {
-        out.push({ id: `doc:${r.id}:${i}`, sourceType: h.kind, sourceRef: { recordId: r.id }, message: h.text || r.title || 'Urgent note', priority: 1, createdAt: r.updatedAt ?? now() } as any);
+        out.push({ 
+          id: `doc:${r.id}:${i}`, 
+          sourceType: h.kind, 
+          sourceRef: baseSourceRef, 
+          message: h.text || r.title || 'Urgent note', 
+          priority: 1, 
+          createdAt: r.updatedAt ?? now(),
+          workspaceName: wk?.name,
+          tableName: tb?.name
+        });
       });
     }
   }
 
-  // write to DB (overwrite)
-  try {
-    await db.transaction('rw', [db.urgentItems], async () => {
-      await db.urgentItems.clear();
-      if (out.length) await db.urgentItems.bulkPut(out as any);
-    });
-  } catch (e) {
-    console.warn('buildUrgentIndex write error', e);
-  }
-
+  // derived items are returned directly for UI consumption
   return out;
 }
 

@@ -4,14 +4,22 @@ import React from 'react';
 import { DocumentEditor } from '@/components/document-editor';
 
 export const Route = createFileRoute('/items/$itemId')({
-  component: ({ params }: any) => {
-    const { itemId } = params as { itemId: string };
-    return (
-      <AppShell>
-        <div className="p-6 max-w-4xl mx-auto">
-          <DocumentEditor recordId={itemId} />
-        </div>
-      </AppShell>
-    );
-  },
+  component: ItemPage,
 });
+
+function ItemPage() {
+  const { itemId } = Route.useParams();
+  const navigate = useNavigate();
+  
+  return (
+    <AppShell>
+      <DocumentEditor 
+        recordId={itemId} 
+        onClose={() => navigate({ to: '..' } as any)} 
+        initialFullscreen={true}
+      />
+    </AppShell>
+  );
+}
+
+import { useNavigate } from '@tanstack/react-router';

@@ -34,7 +34,12 @@ function tiptapToPlain(node: unknown, depth = 0): string {
   if (!node || typeof node !== "object") return "";
   const n = node as any;
   if (n.type === "text") return n.text ?? "";
-  const children = Array.isArray(n.content) ? n.content.map((c: any) => tiptapToPlain(c, depth + 1)).join("") : "";
+  
+  let children = "";
+  if (Array.isArray(n.content)) {
+    children = n.content.map((c: any) => tiptapToPlain(c, depth + 1)).join("");
+  }
+
   switch (n.type) {
     case "heading": {
       const lv = (n.attrs?.level as number) ?? 1;
@@ -43,19 +48,20 @@ function tiptapToPlain(node: unknown, depth = 0): string {
     case "paragraph": return children + "\n";
     case "bulletList":
     case "orderedList":
-      return children;
+      return "\n" + children + "\n";
     case "listItem":
-      return "  ".repeat(Math.max(0, depth - 1)) + "- " + children + "\n";
+      return "  ".repeat(Math.max(0, depth - 1)) + "• " + children + "\n";
     case "taskItem":
-      return (n.attrs?.checked ? "- [x] " : "- [ ] ") + children + "\n";
-    case "blockquote": return "> " + children + "\n";
+      return "  ".repeat(Math.max(0, depth - 1)) + (n.attrs?.checked ? "☒ " : "☐ ") + children + "\n";
+    case "blockquote": return "\n> " + children + "\n";
     case "horizontalRule": return "\n---\n";
     case "hardBreak": return "\n";
-    case "codeBlock": return "```\n" + children + "\n```\n";
-    case "doc":
+    case "codeBlock": return "\n```\n" + children + "\n```\n";
+    case "doc": return children;
     default: return children;
   }
 }
+
 
 function formatValue(v: unknown, f: Field): string {
   if (v == null || v === "") return "";
@@ -70,7 +76,7 @@ function formatValue(v: unknown, f: Field): string {
 
 function recordPropertyLines(record: RecordItem, fields: Field[]) {
   return fields.map((f) => {
-    const raw = record.values?.[f.id];
+    const raw = record.fields?.[f.id];
     let v = "";
     if (f.type === "date" || f.type === "dateTime") {
       v = raw ? String(raw) : "";
@@ -146,9 +152,35 @@ export async function exportRecordPDF(recordId: string, opts: { includePropertie
 
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   pdfRecord(doc, r, fields, wk.name, plain, atts.map((a) => a.name), opts, true);
-  // return blob for optional packaging
-  return doc.output("blob");
+  
+  const blob = doc.output("blob");
+  if (!(window as any).__v_export_no_download) {
+    download(blob, `Record_${safeFilename(r.title || "untitled")}_${isoDay()}.pdf`);
+  }
+  return blob;
 }
+
+export async function exportRecordJSON(recordId: string) {
+  const r = await getRecord(recordId); if (!r) throw new Error("Record not found");
+  const fields = await getFieldsForTable(r.tableId);
+  const docContent = await getDocument(r.id);
+  const atts = await listAttachments(recordId);
+  
+  const payload = {
+    type: "vault-record",
+    version: 1,
+    exportDate: new Date().toISOString(),
+    record: r,
+    fields,
+    document: docContent,
+    attachments: atts
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  download(blob, `Record_${safeFilename(r.title || "untitled")}_${isoDay()}.json`);
+  return payload;
+}
+
 
 /* ---------- DOCX helpers ---------- */
 function docxRecordSection(record: RecordItem, fields: Field[], plain: string, attNames: string[], opts: { includeProperties?: boolean; includeNotes?: boolean; includeAttachments?: boolean }) {
@@ -192,7 +224,7 @@ export async function exportTableCSV(tableId: string) {
   const records = await getRecordsForTable(tableId);
   const headers = ["Title", ...fields.map((f) => f.name), "Created", "Updated"];
   const rows = records.map((r) => {
-    const vals = fields.map((f) => { const raw = r.values?.[f.id]; return csvCell(formatValue(raw, f)); });
+    const vals = fields.map((f) => { const raw = r.fields?.[f.id]; return csvCell(formatValue(raw, f)); });
     return [csvCell(r.title), ...vals, csvCell(r.createdAt), csvCell(r.updatedAt)].join(",");
   });
   const csv = [headers.map(csvCell).join(","), ...rows].join("\n");
@@ -216,46 +248,99 @@ export async function exportFullBackupJSON() {
 export async function exportWorkspaceArchive(workspaceId: string) {
   const wk = await getWorkspace(workspaceId);
   if (!wk) throw new Error("Workspace not found");
+  
   const zip = new JSZip();
-  const root = zip.folder(`readable-archive/${safeFilename(wk.name)}`) as JSZip;
-  // include workspace index (DOCX)
-  const tables = await db.tablesStore.where({ workspaceId }).sortBy('createdAt');
-  // for each table, create folder and add each record as DOCX and PDF
-  for (const t of tables) {
-    const tabFolder = root.folder(safeFilename(t.name)) as JSZip;
-    const records = await getRecordsForTable(t.id);
-    for (const r of records) {
-      try {
-        // DOCX
-        const rDocx = await (async () => {
-          const fields = await getFieldsForTable(t.id);
+  const root = zip.folder(safeFilename(wk.name)) as JSZip;
+  
+  // To avoid duplicate downloads during archive generation
+  (window as any).__v_export_no_download = true;
+
+  try {
+    const tables = await db.tablesStore.where({ workspaceId }).sortBy('createdAt');
+    const fullExport: any = { workspace: wk, tables: [] };
+
+    for (const t of tables) {
+      const tabFolder = root.folder(safeFilename(t.name)) as JSZip;
+      const records = await getRecordsForTable(t.id);
+      const fields = await getFieldsForTable(t.id);
+      
+      const tableData = { ...t, fields, records: [] as any[] };
+
+      for (const r of records) {
+        try {
           const docContent = await getDocument(r.id);
           const plain = docContent ? tiptapToPlain(docContent.contentJson) : "";
           const atts = await listAttachments(r.id);
+          
+          tableData.records.push({ record: r, document: docContent, attachments: atts });
+
+          // DOCX
           const docx = new DocxDoc({ sections: [{ children: [ new Paragraph({ children: [new TextRun({ text: wk.name, italics: true, color: "888888" })] }), ...docxRecordSection(r, fields, plain, atts.map((a) => a.name), { includeProperties: true, includeNotes: true, includeAttachments: true }) ] }] });
-          return await Packer.toBlob(docx);
-        })();
-        tabFolder.file(`${safeFilename(r.title || 'untitled')}.docx`, rDocx);
-        // PDF
-        const rPdf = await exportRecordPDF(r.id);
-        tabFolder.file(`${safeFilename(r.title || 'untitled')}.pdf`, rPdf);
-      } catch (e) {
-        // continue on error
-        console.warn('exportWorkspaceArchive record error', e);
+          const rDocx = await Packer.toBlob(docx);
+          tabFolder.file(`${safeFilename(r.title || 'untitled')}.docx`, rDocx);
+          
+          // PDF
+          const rPdf = await exportRecordPDF(r.id);
+          tabFolder.file(`${safeFilename(r.title || 'untitled')}.pdf`, rPdf);
+          
+          // JSON
+          const rJson = JSON.stringify({ record: r, document: docContent, attachments: atts }, null, 2);
+          tabFolder.file(`${safeFilename(r.title || 'untitled')}.json`, rJson);
+
+        } catch (e) {
+          console.warn('exportWorkspaceArchive record error', e);
+        }
       }
+      fullExport.tables.push(tableData);
     }
+
+    // Add structured index
+    root.file(`Workspace_Structure.json`, JSON.stringify(fullExport, null, 2));
+    
+    const blob = await zip.generateAsync({ type: 'blob' });
+    download(blob, `Workspace_${safeFilename(wk.name)}_Archive_${isoDay()}.zip`);
+    return blob;
+  } finally {
+    (window as any).__v_export_no_download = false;
   }
-  // add workspace index JSON
-  const idx = { workspace: wk, tables: await db.tablesStore.where({ workspaceId }).toArray() };
-  root.file(`Workspace_Index.json`, JSON.stringify(idx, null, 2));
-  const blob = await zip.generateAsync({ type: 'blob' });
-  download(blob, `Workspace_${safeFilename(wk.name)}_readable_archive_${isoDay()}.zip`);
-  return blob;
 }
+
+export async function exportWorkspaceJSON(workspaceId: string) {
+  const wk = await getWorkspace(workspaceId);
+  if (!wk) throw new Error("Workspace not found");
+  
+  const tables = await db.tablesStore.where({ workspaceId }).toArray();
+  const payload: any = {
+    type: "vault-workspace",
+    version: 1,
+    exportDate: new Date().toISOString(),
+    workspace: wk,
+    tables: []
+  };
+
+  for (const t of tables) {
+    const fields = await getFieldsForTable(t.id);
+    const records = await getRecordsForTable(t.id);
+    const tableData = { ...t, fields, records: [] as any[] };
+    
+    for (const r of records) {
+      const doc = await getDocument(r.id);
+      const atts = await listAttachments(r.id);
+      tableData.records.push({ record: r, document: doc, attachments: atts });
+    }
+    payload.tables.push(tableData);
+  }
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  download(blob, `Workspace_${safeFilename(wk.name)}_${isoDay()}.json`);
+  return payload;
+}
+
 
 /* ---------- Urgent exports ---------- */
 async function buildUrgentIndex(): Promise<(UrgentItem & { workspaceName?: string; recordTitle?: string; fieldName?: string })[]> {
-  const items = await db.urgentItems.toArray();
+  const { buildUrgentIndex: buildIndex } = await import("./urgent");
+  const items = await buildIndex();
   const out: any[] = [];
   for (const it of items) {
     const copy = { ...it } as any;

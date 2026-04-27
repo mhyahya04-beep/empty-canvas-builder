@@ -4,8 +4,10 @@ import { setRecordValue } from "@/lib/storage";
 import { TAG_CLASS, cn, formatDate } from "@/lib/utils";
 import { Star, Check, X, ChevronDown } from "lucide-react";
 
-export function CellEditor({ field, record, }: { field: Field; record: RecordItem }) {
-  const value = record.values?.[field.id];
+export function CellEditor({
+  field, record,
+}: { field: Field; record: RecordItem }) {
+  const value = record.fields?.[field.id];
 
   switch (field.type) {
     case "text":
@@ -54,7 +56,10 @@ function TextCell({ field, record, value, type }: { field: Field; record: Record
 function NumberCell({ field, record, value }: { field: Field; record: RecordItem; value?: number }) {
   const [v, setV] = useState<string>(value != null ? String(value) : "");
   useEffect(() => setV(value != null ? String(value) : ""), [value]);
-  const commit = () => { const n = v === "" ? null : Number(v); if (n !== value) void setRecordValue(record.id, field.id, n); };
+  const commit = () => {
+    const n = v === "" ? null : Number(v);
+    if (n !== value) void setRecordValue(record.id, field.id, n);
+  };
   return (
     <input
       type="number" value={v} onChange={(e) => setV(e.target.value)} onBlur={commit}
@@ -77,7 +82,8 @@ function DateCell({ field, record, value }: { field: Field; record: RecordItem; 
 function CheckboxCell({ field, record, value }: { field: Field; record: RecordItem; value: boolean }) {
   return (
     <button onClick={() => void setRecordValue(record.id, field.id, !value)}
-      className={cn("ml-2 w-4 h-4 rounded border flex items-center justify-center transition-colors", value ? "bg-primary border-primary text-primary-foreground" : "border-border hover:border-primary")}>
+      className={cn("ml-2 w-4 h-4 rounded border flex items-center justify-center transition-colors",
+        value ? "bg-primary border-primary text-primary-foreground" : "border-border hover:border-primary")}>
       {value && <Check className="w-3 h-3" />}
     </button>
   );
@@ -98,7 +104,12 @@ function RatingCell({ field, record, value }: { field: Field; record: RecordItem
 function SelectCell({ field, record, value }: { field: Field; record: RecordItem; value?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (!open) return; const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }; window.addEventListener("mousedown", fn); return () => window.removeEventListener("mousedown", fn); }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener("mousedown", fn);
+    return () => window.removeEventListener("mousedown", fn);
+  }, [open]);
   const opt = field.options?.find((o) => o.id === value);
   return (
     <div ref={ref} className="relative px-1">
@@ -136,15 +147,24 @@ function SelectCell({ field, record, value }: { field: Field; record: RecordItem
 function MultiSelectCell({ field, record, value }: { field: Field; record: RecordItem; value: string[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (!open) return; const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }; window.addEventListener("mousedown", fn); return () => window.removeEventListener("mousedown", fn); }, [open]);
-  const toggle = (id: string) => { const next = value.includes(id) ? value.filter((v) => v !== id) : [...value, id]; void setRecordValue(record.id, field.id, next); };
+  useEffect(() => {
+    if (!open) return;
+    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener("mousedown", fn);
+    return () => window.removeEventListener("mousedown", fn);
+  }, [open]);
+  const toggle = (id: string) => {
+    const next = value.includes(id) ? value.filter((v) => v !== id) : [...value, id];
+    void setRecordValue(record.id, field.id, next);
+  };
   return (
     <div ref={ref} className="relative px-1">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-1 flex-wrap px-1.5 py-1 rounded hover:bg-muted text-left min-h-[28px]">
         {value.length === 0 && <span className="text-xs text-muted-foreground/50">—</span>}
         {value.map((id) => {
           const o = field.options?.find((x) => x.id === id);
-          if (!o) return null; return <span key={id} className={cn("text-xs px-2 py-0.5 rounded-full border", TAG_CLASS[o.color])}>{o.label}</span>;
+          if (!o) return null;
+          return <span key={id} className={cn("text-xs px-2 py-0.5 rounded-full border", TAG_CLASS[o.color])}>{o.label}</span>;
         })}
       </button>
       {open && (
@@ -152,7 +172,8 @@ function MultiSelectCell({ field, record, value }: { field: Field; record: Recor
           {field.options?.map((o) => {
             const active = value.includes(o.id);
             return (
-              <button key={o.id} onClick={() => toggle(o.id)} className="w-full px-3 py-1.5 hover:bg-muted text-left flex items-center justify-between gap-2">
+              <button key={o.id} onClick={() => toggle(o.id)}
+                className="w-full px-3 py-1.5 hover:bg-muted text-left flex items-center justify-between gap-2">
                 <span className={cn("text-xs px-2 py-0.5 rounded-full border", TAG_CLASS[o.color])}>{o.label}</span>
                 {active && <Check className="w-3 h-3 text-primary" />}
               </button>

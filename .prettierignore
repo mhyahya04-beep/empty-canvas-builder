@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+src-tauri/target
+.output
+.vinxi
+.tanstack
+pnpm-lock.yaml
+package-lock.json
+routeTree.gen.ts

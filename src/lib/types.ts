@@ -40,33 +40,61 @@ export interface FieldOption {
   color: TagColor;
 }
 
-export interface Space {
+export interface Workspace {
   id: string;
   name: string;
   icon?: string;
   description?: string;
+  cover?: string;
+  templateType?: string;
   createdAt: string;
   updatedAt: string;
+  archived?: boolean;
+  favorite?: boolean;
+  urgent?: boolean;
+  order?: number;
+}
+
+/** Alias for Workspace to maintain compatibility with legacy UI components */
+export type Space = Workspace;
+
+export interface DatabaseTable {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  archived?: boolean;
 }
 
 export interface Field {
   id: string;
+  workspaceId: string;
   tableId: string;
-  workspaceId?: string;
   name: string;
   type: FieldType;
   options?: FieldOption[];
   order: number;
+  required?: boolean;
+  hidden?: boolean;
+  width?: number;
 }
 
 export interface RecordItem {
   id: string;
+  workspaceId: string;
   tableId: string;
-  workspaceId?: string;
   title: string;
+  icon?: string;
+  cover?: string;
   createdAt: string;
   updatedAt: string;
-  values?: Record<string, unknown>;
+  archived?: boolean;
+  favorite?: boolean;
+  urgent?: boolean;
+  fields?: Record<string, unknown>;
+  documentContent?: unknown; // Tiptap JSON content
 }
 
 export interface DocumentContent {
@@ -79,14 +107,14 @@ export interface DocumentContent {
 
 export interface Attachment {
   id: string;
-  // owner can be a record or a document; use ownerType/ownerId for canonical model
-  ownerType?: 'record' | 'document' | string;
-  ownerId?: string;
+  ownerType: 'record' | 'workspace' | 'table';
+  ownerId: string;
   name: string;
   mimeType: string;
   size?: number;
   hash?: string;
   dataUrl?: string;
+  order?: number;
   createdAt: string;
 }
 
@@ -100,77 +128,77 @@ export interface AttachmentBlob {
 
 export interface View {
   id: string;
-  tableId?: string;
-  workspaceId?: string;
+  workspaceId: string;
+  tableId: string;
   name: string;
-  type: string;
+  type: "table" | "list" | "gallery" | "board" | "calendar";
+  filters?: ViewFilter[];
+  sorts?: ViewSort[];
   visibleFieldIds?: string[];
+  groupByFieldId?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ViewFilter {
+  fieldId: string;
+  op: "eq" | "neq" | "contains" | "gt" | "lt" | "isEmpty" | "notEmpty";
+  value?: unknown;
+}
+
+export interface ViewSort {
+  fieldId: string;
+  direction: "asc" | "desc";
+}
+
+export type ThemeFamily =
+  | "vaultAtelier"
+  | "midnightArchive"
+  | "ivoryWorkspace"
+  | "velvetStudio"
+  | "clinicalScholar"
+  | "libraryNoir"
+  | "pastelGlass";
+
+export type ThemeMode = "dark" | "light" | "system";
+
+export type ThemeName = ThemeFamily;
 
 export interface Settings {
   id: "app";
-  theme?: string;
+  theme: ThemeName;
+  themeFamily?: ThemeFamily;
+  themeMode?: ThemeMode;
+  serifHeadings?: boolean;
+  compactMode?: boolean;
+  showUrgentSection?: boolean;
+  includeArchivedUrgent?: boolean;
+  sidebarCollapsed?: boolean;
+  lastOpenedSpaceId?: string;
+  lastBackupAt?: string;
+  welcomed?: boolean;
 }
 
-export interface Workspace {
-  id: string;
-  name: string;
-  icon?: string;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DatabaseTable {
-  id: string;
-  workspaceId: string;
-  name: string;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface RecordValue {
-  id: string;
-  recordId: string;
-  fieldId: string;
-  tableId?: string;
-  value: unknown;
-  createdAt: string;
-  updatedAt: string;
+export interface DateValue {
+  start: string;
+  end?: string;
+  hasTime?: boolean;
+  tz?: string;
+  format?: 'FULL' | 'MONTH_DAY_YEAR' | 'DAY_MONTH_YEAR' | 'ISO' | 'DMY_SLASH' | 'MDY_SLASH';
 }
 
 export interface UrgentItem {
   id: string;
-  sourceType: string; // 'record'|'field'|'cell'|'checklist'|'text'|'deadline'
-  sourceRef: any; // { recordId?, fieldId?, cellId?, textRange?, deadline? }
-  message?: string;
-  priority?: number;
+  sourceType: string;
+  sourceRef: {
+    recordId: string;
+    workspaceId?: string;
+    tableId?: string;
+    fieldId?: string;
+  };
+  message: string;
+  priority: number;
   createdAt: string;
-  resolvedAt?: string;
-  // optional context for UI
-  workspaceId?: string;
   workspaceName?: string;
-  tableId?: string;
   tableName?: string;
-}
-
-export interface SyncState {
-  id: string;
-  provider: string; // e.g. 'drive', 'tauri', 'indexeddb'
-  localId?: string;
-  remoteId?: string;
-  status?: string;
-  lastSyncedAt?: string;
-}
-
-export interface ExportJob {
-  id: string;
-  status: 'pending' | 'running' | 'success' | 'failed';
-  progress?: number;
-  createdAt: string;
-  finishedAt?: string;
-  fileUrl?: string;
 }

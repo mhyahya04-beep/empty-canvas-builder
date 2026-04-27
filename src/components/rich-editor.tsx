@@ -1,54 +1,61 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
-import Placeholder from "@tiptap/extension-placeholder";
-import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
-import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
-import HorizontalRule from "@tiptap/extension-horizontal-rule";
+import Placeholder from "@tiptap/extension-placeholder";
+import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
-import { Bold, Italic, Underline as UnderlineIcon, Type, List, ListOrdered, CheckSquare, Quote, Table as TableIcon, Link as LinkIcon, Image as ImageIcon } from "lucide-react";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { 
+  Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, 
+  Quote, Heading1, Heading2, Heading3, CheckSquare, Minus, Link as LinkIcon, 
+  Table as TableIcon, Plus, Trash2, AlignLeft, AlignRight, Image as ImageIcon,
+  Highlighter
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type RichEditorHandle = { insertImage: (src: string) => void };
-
-export const RichTextEditor = forwardRef(function RichTextEditor(
-  { initialJSON, onChange, placeholder = "Write…" }: { initialJSON: unknown; onChange: (json: unknown) => void; placeholder?: string; },
-  ref: React.Ref<RichEditorHandle | null>,
-) {
-  const fileRef = useRef<HTMLInputElement | null>(null);
-
+export const RichTextEditor = forwardRef(({
+  initialJSON, onChange, placeholder = "Write notes, thoughts, ingredients, anything…",
+}: {
+  initialJSON: unknown;
+  onChange: (json: unknown) => void;
+  placeholder?: string;
+}, ref) => {
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      Link.configure({ autolink: true, openOnClick: false }),
+      StarterKit,
+      Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener", target: "_blank" } }),
+      Image,
+      TaskList,
+      TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder }),
       Underline,
-      Image,
-      Table.configure({ resizable: false }),
+      Highlight.configure({ multicolor: true }),
+      Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
       TableCell,
-      TaskList,
-      TaskItem,
-      HorizontalRule,
-      Highlight.configure({ multicolor: false }),
     ],
-    content: initialJSON ?? "",
-    editorProps: { attributes: { class: "tiptap-doc prose prose-sm sm:prose lg:prose-lg" } },
+    content: (initialJSON as any) ?? "",
+    editorProps: {
+      attributes: { class: "tiptap-doc focus:outline-none" },
+    },
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
   });
 
-  // expose imperative insert
   useImperativeHandle(ref, () => ({
-    insertImage: (src: string) => {
-      if (!editor) return;
-      editor.chain().focus().setImage({ src }).run();
-    },
+    insertImage: (url: string) => {
+      editor?.chain().focus().setImage({ src: url }).run();
+    }
   }));
 
+  // load new content when record changes
   const lastContentRef = useRef(initialJSON);
   useEffect(() => {
     if (!editor) return;
@@ -61,28 +68,48 @@ export const RichTextEditor = forwardRef(function RichTextEditor(
   if (!editor) return null;
 
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <button onClick={() => editor.chain().focus().toggleBold().run()} className="px-2 py-1 rounded hover:bg-muted" title="Bold"><Bold className="w-4 h-4" /></button>
-        <button onClick={() => editor.chain().focus().toggleItalic().run()} className="px-2 py-1 rounded hover:bg-muted" title="Italic"><Italic className="w-4 h-4" /></button>
-        <button onClick={() => editor.chain().focus().toggleUnderline().run()} className="px-2 py-1 rounded hover:bg-muted" title="Underline"><UnderlineIcon className="w-4 h-4" /></button>
-        <button onClick={() => editor.chain().focus().toggleStrike().run()} className="px-2 py-1 rounded hover:bg-muted" title="Strikethrough"><span className="text-sm font-semibold">S</span></button>
-        <button onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className="px-2 py-1 rounded hover:bg-muted" title="H1"><Type className="w-4 h-4" /></button>
-        <button onClick={() => editor.chain().focus().toggleBulletList().run()} className="px-2 py-1 rounded hover:bg-muted" title="Bullet list"><List className="w-4 h-4" /></button>
-        <button onClick={() => editor.chain().focus().toggleOrderedList().run()} className="px-2 py-1 rounded hover:bg-muted" title="Numbered list"><ListOrdered className="w-4 h-4" /></button>
-        <button onClick={() => editor.chain().focus().toggleTaskList().run()} className="px-2 py-1 rounded hover:bg-muted" title="Checklist"><CheckSquare className="w-4 h-4" /></button>
-        <button onClick={() => editor.chain().focus().toggleBlockquote().run()} className="px-2 py-1 rounded hover:bg-muted" title="Quote"><Quote className="w-4 h-4" /></button>
-        <button onClick={() => editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()} className="px-2 py-1 rounded hover:bg-muted" title="Insert table"><TableIcon className="w-4 h-4" /></button>
-        <button onClick={() => { fileRef.current?.click(); }} className="px-2 py-1 rounded hover:bg-muted" title="Insert image"><ImageIcon className="w-4 h-4" /></button>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) { const fr = new FileReader(); fr.onload = () => { const url = fr.result as string; editor.chain().focus().setImage({ src: url }).run(); }; fr.readAsDataURL(f); e.currentTarget.value = ""; } }} />
-        <button onClick={() => editor.chain().focus().setHorizontalRule().run()} className="px-2 py-1 rounded hover:bg-muted" title="Divider">—</button>
-        <button onClick={() => editor.chain().focus().toggleHighlight({ color: "urgent" }).run()} className="px-2 py-1 rounded hover:bg-muted text-destructive" title="Urgent highlight">!</button>
-        <button onClick={() => editor.chain().focus().extendMarkRange("link").run()} className="px-2 py-1 rounded hover:bg-muted" title="Link"><LinkIcon className="w-4 h-4" /></button>
+    <div className="relative">
+      <div className="flex items-center flex-wrap gap-0.5 mb-2 sticky top-0 bg-card/95 backdrop-blur z-10 py-1 -mx-1 px-1 border-b border-border/50">
+        <Btn active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="Heading 1"><Heading1 className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="Heading 2"><Heading2 className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title="Heading 3"><Heading3 className="w-4 h-4" /></Btn>
+        <Sep />
+        <Btn active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold"><Bold className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic"><Italic className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()} title="Underline"><UnderlineIcon className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()} title="Strike"><Strikethrough className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("highlight", { color: "urgent" })} onClick={() => editor.chain().focus().toggleHighlight({ color: "urgent" }).run()} title="Urgent Highlight"><Highlighter className="w-4 h-4 text-rose-500" /></Btn>
+        <Sep />
+        <Btn active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullet list"><List className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbered list"><ListOrdered className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("taskList")} onClick={() => editor.chain().focus().toggleTaskList().run()} title="Task list"><CheckSquare className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Quote"><Quote className="w-4 h-4" /></Btn>
+        <Sep />
+        <Btn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Insert Table"><TableIcon className="w-4 h-4" /></Btn>
+        <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider"><Minus className="w-4 h-4" /></Btn>
+        <Btn active={editor.isActive("link")} onClick={() => {
+          const url = prompt("Link URL:", editor.getAttributes("link").href ?? "https://");
+          if (url === null) return;
+          if (url === "") editor.chain().focus().unsetLink().run();
+          else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+        }} title="Link"><LinkIcon className="w-4 h-4" /></Btn>
+        <Btn onClick={() => {
+          const url = prompt("Image URL:", "https://");
+          if (url) editor.chain().focus().setImage({ src: url }).run();
+        }} title="Image"><ImageIcon className="w-4 h-4" /></Btn>
       </div>
-
       <EditorContent editor={editor} />
     </div>
   );
 });
 
-export default RichTextEditor;
+RichTextEditor.displayName = "RichTextEditor";
+
+function Btn({ children, onClick, active, title }: { children: React.ReactNode; onClick: () => void; active?: boolean; title?: string }) {
+  return (
+    <button type="button" onClick={onClick} title={title}
+      className={cn("p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors",
+        active && "bg-muted text-foreground")}>{children}</button>
+  );
+}
+function Sep() { return <div className="w-px h-5 bg-border mx-1" />; }

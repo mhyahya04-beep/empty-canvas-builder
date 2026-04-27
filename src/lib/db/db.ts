@@ -1,106 +1,35 @@
 import Dexie, { type Table } from "dexie";
+import type { Workspace, DatabaseTable, Field, RecordItem, Attachment, Settings, UrgentItem } from "../types";
 
 class UnifiedDB extends Dexie {
-  // Canonical stores
-  workspaces!: Table<any, string>;
-  // Use `tablesStore` to avoid colliding with Dexie's internal `tables` array property
-  tablesStore!: Table<any, string>;
-  fields!: Table<any, string>;
-  records!: Table<any, string>;
-  recordValues!: Table<any, string>;
-  documents!: Table<any, string>;
-  attachments!: Table<any, string>;
-  attachmentBlobs!: Table<any, string>;
-  views!: Table<any, string>;
-  urgentItems!: Table<any, string>;
-  syncStates!: Table<any, string>;
-  exportJobs!: Table<any, string>;
-  settings!: Table<any, string>;
-
-  // legacy alias kept for migration step
-  spaces!: Table<any, string>;
+  workspaces!: Table<Workspace, string>;
+  tablesStore!: Table<DatabaseTable, string>;
+  fields!: Table<Field, string>;
+  records!: Table<RecordItem, string>;
+  attachments!: Table<Attachment, string>;
+  settings!: Table<Settings, string>;
+  urgentItems!: Table<UrgentItem, string>;
 
   constructor() {
     super("unified_study_vault");
 
-    // original schema (v1)
-    this.version(1).stores({
-      spaces: "id, name, archived, favorite, updatedAt",
-      fields: "id, spaceId, order",
-      records: "id, spaceId, archived, updatedAt",
-      documents: "id, recordId",
-      attachments: "id, recordId",
-      views: "id, spaceId",
-      settings: "id",
-    });
-
-    // v2 added attachment blobs and hash index
-    this.version(2).stores({
-      attachments: "id, recordId, hash",
-      attachmentBlobs: "hash",
-    });
-
-    // v3 introduces the canonical model: workspaces, tables, recordValues, urgentItems, sync/export jobs
-    this.version(3).stores({
-      // keep legacy 'spaces' here so we can read and migrate existing data
-      spaces: "id, name, archived, favorite, updatedAt",
-
-      // new canonical stores
-      workspaces: "id, name, updatedAt",
-      tables: "id, workspaceId, name, updatedAt",
+    this.version(10).stores({
+      workspaces: "id, name, icon, favorite, archived, templateType, updatedAt",
+      tablesStore: "id, workspaceId, name, updatedAt",
       fields: "id, tableId, workspaceId, order",
       records: "id, tableId, workspaceId, title, updatedAt",
-      recordValues: "id, recordId, fieldId, tableId",
-      documents: "id, recordId, tableId, updatedAt",
       attachments: "id, ownerType, ownerId, hash",
-      attachmentBlobs: "hash",
-      views: "id, tableId, workspaceId",
-      urgentItems: "id, sourceType, createdAt",
-      syncStates: "id, provider, lastSyncedAt",
-      exportJobs: "id, status, createdAt, finishedAt",
       settings: "id",
-    }).upgrade(async () => {
-      try {
-        // migrate legacy spaces -> workspaces + tables
-        const legacySpaces = await this.table("spaces").toArray();
-        for (const s of legacySpaces) {
-          const workspace = {
-            id: s.id,
-            name: s.name,
-            icon: s.icon,
-            description: s.description ?? undefined,
-            createdAt: s.createdAt ?? new Date().toISOString(),
-            updatedAt: s.updatedAt ?? new Date().toISOString(),
-          };
-          await this.table("workspaces").put(workspace);
+      urgentItems: "id, priority, createdAt",
 
-          // create a default table for this workspace
-          const tableId = `table:${s.id}`;
-          const table = { id: tableId, workspaceId: workspace.id, name: s.name + " — Table", description: undefined, createdAt: workspace.createdAt, updatedAt: workspace.updatedAt };
-          await this.table("tables").put(table);
-
-          // migrate fields -> attach tableId & workspaceId
-          const fs = await this.table("fields").where({ spaceId: s.id }).toArray();
-          for (const f of fs) {
-            await this.table("fields").update(f.id, { tableId: tableId, workspaceId: workspace.id } as any);
-          }
-
-          // migrate records -> add tableId & workspaceId
-          const rs = await this.table("records").where({ spaceId: s.id }).toArray();
-          for (const r of rs) {
-            await this.table("records").update(r.id, { tableId: tableId, workspaceId: workspace.id } as any);
-          }
-
-          // migrate views -> attach tableId & workspaceId
-          const vs = await this.table("views").where({ spaceId: s.id }).toArray();
-          for (const v of vs) {
-            await this.table("views").update(v.id, { tableId: tableId, workspaceId: workspace.id } as any);
-          }
-        }
-      } catch (e) {
-        // migration best-effort: log silently
-        // console.error('migration error', e);
-      }
+      // explicitly drop legacy tables
+      spaces: null,
+      recordValues: null,
+      documents: null,
+      attachmentBlobs: null,
+      views: null,
+      syncStates: null,
+      exportJobs: null,
     });
   }
 }
