@@ -1,157 +1,110 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Search } from "lucide-react";
-import { AppShell } from "@/components/layout/AppShell";
-import { useItemsStore } from "@/stores/items-store";
-import { useUIStore } from "@/stores/ui-store";
-import { ItemCard } from "@/components/items/ItemCard";
-import { filterItems, type SearchFilters } from "@/lib/search/search-index";
-import { useState } from "react";
-import { itemIsArchived, type ItemType } from "@/models/item";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { Eye, EyeOff, Search } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { db } from "@/lib/db/db";
+import type { RecordItem } from "@/lib/types";
 
-export const Route = createFileRoute("/search")({
-  component: () => (
+export const Route = (createFileRoute as any)("/search")({
+  component: SearchRoute,
+});
+
+function SearchRoute() {
+  return (
     <AppShell>
       <SearchPage />
     </AppShell>
-  ),
-});
-
-const TYPE_OPTIONS: { value: ItemType | ""; label: string }[] = [
-  { value: "", label: "All types" },
-  { value: "note", label: "Notes" },
-  { value: "pdf_library_item", label: "PDFs" },
-  { value: "resource_list", label: "Resource lists" },
-  { value: "link_collection", label: "Link collections" },
-];
+  );
+}
 
 function SearchPage() {
-  const items = useItemsStore((s) => s.items);
-  const query = useUIStore((s) => s.searchQuery);
-  const setQuery = useUIStore((s) => s.setSearchQuery);
-  const [type, setType] = useState<ItemType | "">("");
-  const [tag, setTag] = useState("");
-  const [pinnedOnly, setPinnedOnly] = useState(false);
-  const [includeArchived, setIncludeArchived] = useState(false);
-  const [subjectId, setSubjectId] = useState("");
+  const records = useLiveQuery(() => db.records.toArray(), []) ?? [];
+  const [query, setQuery] = useState("");
+  const [showSensitive, setShowSensitive] = useState(false);
+  const normalizedQuery = query.trim().toLowerCase();
+  const searchableRecords = useMemo(
+    () => records.filter((record) => !record.archived && (showSensitive || !record.isSensitive)),
+    [records, showSensitive],
+  );
+  const hiddenSensitiveCount = records.filter((record) => !record.archived && record.isSensitive).length;
 
-  const subjects = items.filter((item) => item.type === "subject" && !itemIsArchived(item));
-  const allTags = Array.from(new Set(items.flatMap((item) => item.tags))).sort();
-
-  const filters: SearchFilters = {
-    query,
-    type: type || undefined,
-    tag: tag || undefined,
-    pinnedOnly,
-    includeArchived,
-    subjectId: subjectId || undefined,
-  };
-
-  const results = filterItems(items, filters).filter((item) => item.type !== "subject");
-
-  const selectCls =
-    "h-9 rounded-lg border border-border bg-card/50 px-3 py-1 text-sm outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/5";
+  const results = useMemo(() => {
+    if (!normalizedQuery) return searchableRecords.slice(0, 50);
+    return searchableRecords.filter((record) => recordMatchesQuery(record, normalizedQuery)).slice(0, 100);
+  }, [searchableRecords, normalizedQuery]);
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-serif text-4xl font-bold tracking-tight">Search</h1>
-        <p className="text-sm text-muted-foreground/70">
-          Find notes, references, and collections across your entire vault.
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-1 flex-col overflow-y-auto px-8 py-10">
+      <div className="mb-8">
+        <h1 className="font-display text-4xl font-semibold tracking-tight">Global Search</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Search across migrated vault records, recipes, notes, and library pages.
         </p>
       </div>
 
-      <div className="mt-8 space-y-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/40" />
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             autoFocus
-            aria-label="Search vault"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type to find anything..."
-            className="h-14 w-full rounded-2xl border border-border bg-card/50 pl-12 pr-6 font-medium shadow-sm transition-all placeholder:text-muted-foreground/30 focus:border-primary/30 focus:bg-card focus:outline-none focus:ring-8 focus:ring-primary/5"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search titles, tags, and properties"
+            className="h-12 w-full rounded-xl border border-border bg-card pl-11 pr-4 text-sm outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as ItemType | "")}
-            className={selectCls}
+        {hiddenSensitiveCount > 0 && (
+          <button
+            onClick={() => setShowSensitive((current) => !current)}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm text-muted-foreground transition hover:bg-muted"
           >
-            {TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={subjectId}
-            onChange={(e) => setSubjectId(e.target.value)}
-            className={selectCls}
-          >
-            <option value="">All subjects</option>
-            {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.title}
-              </option>
-            ))}
-          </select>
-          {allTags.length > 0 && (
-            <select value={tag} onChange={(e) => setTag(e.target.value)} className={selectCls}>
-              <option value="">All tags</option>
-              {allTags.map((currentTag) => (
-                <option key={currentTag} value={currentTag}>
-                  #{currentTag}
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="ml-2 flex items-center gap-4">
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground/60 transition-colors hover:text-foreground">
-              <input
-                type="checkbox"
-                className="rounded-sm border-border bg-muted/40"
-                checked={pinnedOnly}
-                onChange={(e) => setPinnedOnly(e.target.checked)}
-              />
-              Pinned
-            </label>
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground/60 transition-colors hover:text-foreground">
-              <input
-                type="checkbox"
-                className="rounded-sm border-border bg-muted/40"
-                checked={includeArchived}
-                onChange={(e) => setIncludeArchived(e.target.checked)}
-              />
-              Archived
-            </label>
-          </div>
-        </div>
+            {showSensitive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {showSensitive ? "Hide Sensitive" : `Show Sensitive (${hiddenSensitiveCount})`}
+          </button>
+        )}
       </div>
 
-      <div className="mt-10 border-t border-border pt-6">
-        <div className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
-          Showing {results.length} {results.length === 1 ? "result" : "results"}
-        </div>
+      <div className="mb-4 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        {results.length} result{results.length === 1 ? "" : "s"}
+      </div>
 
-        {results.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="mb-4 rounded-full bg-muted/30 p-6">
-              <Search className="h-8 w-8 text-muted-foreground/20" />
+      <div className="space-y-3">
+        {results.map((record) => (
+          <Link
+            key={record.id}
+            to="/items/$itemId"
+            params={{ itemId: record.id } as any}
+            className="block rounded-2xl border border-border bg-card p-4 transition hover:border-primary/30 hover:bg-card/80"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{record.title || "Untitled"}</div>
+                <div className="mt-1 truncate text-xs text-muted-foreground">
+                  {[record.type, ...(record.tags ?? [])].filter(Boolean).join(" • ")}
+                </div>
+              </div>
+              <div className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                {record.updatedAt?.slice(0, 10)}
+              </div>
             </div>
-            <h2 className="font-serif text-xl font-semibold">No results found</h2>
-            <p className="mt-1 text-sm text-muted-foreground/70">
-              Try adjusting your filters or search terms.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {results.map((item) => (
-              <ItemCard key={item.id} item={item} />
-            ))}
+          </Link>
+        ))}
+        {results.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+            No records match this search.
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function recordMatchesQuery(record: RecordItem, query: string): boolean {
+  if (record.title.toLowerCase().includes(query)) return true;
+  if ((record.tags ?? []).some((tag) => tag.toLowerCase().includes(query))) return true;
+  for (const value of Object.values(record.properties ?? {})) {
+    if (String(value ?? "").toLowerCase().includes(query)) return true;
+  }
+  return false;
 }

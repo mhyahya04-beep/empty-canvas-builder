@@ -11,10 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SyncRouteImport } from './routes/sync'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as RecordsRouteImport } from './routes/records'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SubjectsSubjectIdRouteImport } from './routes/subjects.$subjectId'
 import { Route as SpaceSpaceIdRouteImport } from './routes/space.$spaceId'
 import { Route as ItemsItemIdRouteImport } from './routes/items.$itemId'
+import { Route as SubjectsRouteImport } from './routes/subjects.'
 
 const SyncRoute = SyncRouteImport.update({
   id: '/sync',
@@ -24,6 +27,11 @@ const SyncRoute = SyncRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecordsRoute = RecordsRouteImport.update({
@@ -36,6 +44,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SubjectsSubjectIdRoute = SubjectsSubjectIdRouteImport.update({
+  id: '/subjects/$subjectId',
+  path: '/subjects/$subjectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SpaceSpaceIdRoute = SpaceSpaceIdRouteImport.update({
   id: '/space/$spaceId',
   path: '/space/$spaceId',
@@ -46,66 +59,92 @@ const ItemsItemIdRoute = ItemsItemIdRouteImport.update({
   path: '/items/$itemId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SubjectsRoute = SubjectsRouteImport.update({
+  id: '/subjects/',
+  path: '/subjects/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/records': typeof RecordsRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
+  '/subjects/': typeof SubjectsRoute
   '/items/$itemId': typeof ItemsItemIdRoute
   '/space/$spaceId': typeof SpaceSpaceIdRoute
+  '/subjects/$subjectId': typeof SubjectsSubjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/records': typeof RecordsRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
+  '/subjects': typeof SubjectsRoute
   '/items/$itemId': typeof ItemsItemIdRoute
   '/space/$spaceId': typeof SpaceSpaceIdRoute
+  '/subjects/$subjectId': typeof SubjectsSubjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/records': typeof RecordsRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
+  '/subjects/': typeof SubjectsRoute
   '/items/$itemId': typeof ItemsItemIdRoute
   '/space/$spaceId': typeof SpaceSpaceIdRoute
+  '/subjects/$subjectId': typeof SubjectsSubjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/records'
+    | '/search'
     | '/settings'
     | '/sync'
+    | '/subjects/'
     | '/items/$itemId'
     | '/space/$spaceId'
+    | '/subjects/$subjectId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/records'
+    | '/search'
     | '/settings'
     | '/sync'
+    | '/subjects'
     | '/items/$itemId'
     | '/space/$spaceId'
+    | '/subjects/$subjectId'
   id:
     | '__root__'
     | '/'
     | '/records'
+    | '/search'
     | '/settings'
     | '/sync'
+    | '/subjects/'
     | '/items/$itemId'
     | '/space/$spaceId'
+    | '/subjects/$subjectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RecordsRoute: typeof RecordsRoute
+  SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   SyncRoute: typeof SyncRoute
+  SubjectsRoute: typeof SubjectsRoute
   ItemsItemIdRoute: typeof ItemsItemIdRoute
   SpaceSpaceIdRoute: typeof SpaceSpaceIdRoute
+  SubjectsSubjectIdRoute: typeof SubjectsSubjectIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -124,6 +163,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/records': {
       id: '/records'
       path: '/records'
@@ -136,6 +182,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subjects/$subjectId': {
+      id: '/subjects/$subjectId'
+      path: '/subjects/$subjectId'
+      fullPath: '/subjects/$subjectId'
+      preLoaderRoute: typeof SubjectsSubjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/space/$spaceId': {
@@ -152,16 +205,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ItemsItemIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/subjects/': {
+      id: '/subjects/'
+      path: '/subjects'
+      fullPath: '/subjects/'
+      preLoaderRoute: typeof SubjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RecordsRoute: RecordsRoute,
+  SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   SyncRoute: SyncRoute,
+  SubjectsRoute: SubjectsRoute,
   ItemsItemIdRoute: ItemsItemIdRoute,
   SpaceSpaceIdRoute: SpaceSpaceIdRoute,
+  SubjectsSubjectIdRoute: SubjectsSubjectIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

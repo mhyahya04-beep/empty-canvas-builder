@@ -5,8 +5,9 @@ import { useEffect } from "react";
 import { updateSettings } from "@/lib/storage";
 
 export const Route = createFileRoute("/space/$spaceId")({
-  validateSearch: (s: Record<string, unknown>): { record?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { record?: string; database?: string } => ({
     record: typeof s.record === "string" ? s.record : undefined,
+    database: typeof s.database === "string" ? s.database : undefined,
   }),
   component: SpacePage,
 });

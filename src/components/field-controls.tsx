@@ -11,6 +11,7 @@ const TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Text" }, { value: "longText", label: "Long text" },
   { value: "number", label: "Number" }, { value: "date", label: "Date" },
   { value: "select", label: "Select" }, { value: "multiSelect", label: "Multi-select" },
+  { value: "relation", label: "Relation" },
   { value: "checkbox", label: "Checkbox" }, { value: "rating", label: "Rating" },
   { value: "url", label: "URL" }, { value: "image", label: "Image" },
   { value: "file", label: "File" },

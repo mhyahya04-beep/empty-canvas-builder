@@ -2,30 +2,50 @@ import React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db/db";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowRight, Clock, Box, FileText, CheckSquare, Highlighter } from "lucide-react";
+import { AlertTriangle, ArrowRight, Clock, Box, Eye, EyeOff, FileText, CheckSquare, Highlighter } from "lucide-react";
 import { cn, formatRelative } from "@/lib/utils";
 import { motion } from "framer-motion";
 import type { UrgentItem } from "@/lib/types";
 
 export function UrgentList({ max = 5 }: { max?: number }) {
-  const items = useLiveQuery(
-    () => db.urgentItems.orderBy("priority").reverse().limit(max).toArray(),
-    [max]
-  ) ?? [];
+  const [showSensitive, setShowSensitive] = React.useState(false);
+  const items = useLiveQuery(() => db.urgentItems.toArray(), []) ?? [];
+  const hiddenSensitiveCount = items.filter((item) => item.isSensitive).length;
+  const visibleItems = items
+    .filter((item) => showSensitive || !item.isSensitive)
+    .sort((left, right) => right.priority - left.priority || right.createdAt.localeCompare(left.createdAt))
+    .slice(0, max);
 
-  if (!items.length) {
+  if (!items.length || visibleItems.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center bg-card/10">
-        <p className="text-sm text-muted-foreground italic">No urgent items requiring immediate attention.</p>
+        <p className="text-sm text-muted-foreground italic">
+          {hiddenSensitiveCount > 0 ? "Urgent sensitive items are hidden." : "No urgent items requiring immediate attention."}
+        </p>
+        {hiddenSensitiveCount > 0 && (
+          <button onClick={() => setShowSensitive(true)} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+            <Eye className="h-3.5 w-3.5" /> Show Sensitive Items
+          </button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {items.map((it, idx) => (
-        <UrgentCard key={it.id} item={it} index={idx} />
-      ))}
+    <div className="space-y-3">
+      {hiddenSensitiveCount > 0 && (
+        <div className="flex justify-end">
+          <button onClick={() => setShowSensitive((current) => !current)} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted">
+            {showSensitive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showSensitive ? "Hide Sensitive" : `Show Sensitive (${hiddenSensitiveCount})`}
+          </button>
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {visibleItems.map((it, idx) => (
+          <UrgentCard key={it.id} item={it} index={idx} />
+        ))}
+      </div>
     </div>
   );
 }

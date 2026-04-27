@@ -1,6 +1,7 @@
 // Urgent indexer: derives urgent items from records, fields, and documents.
-import { db, uid, now } from "./db/db";
-import type { Field, RecordItem, Workspace, DatabaseTable, DocumentContent, UrgentItem } from "./types";
+import { db, now } from "./db/db";
+import type { DatabaseTable, Field, RecordItem, UrgentItem } from "./types";
+import { getRecordFieldValue } from "@/lib/migration/shape";
 
 const URGENT_TAGS = new Set(["urgent", "high priority", "high"]);
 
@@ -41,13 +42,15 @@ function extractText(node: unknown): string {
 function fieldValueIsUrgent(field: Field, value: unknown): boolean {
   if (!value) return false;
   if (field.type === "select" || field.type === "status") {
-    const opt = field.options?.find((o) => o.id === value);
-    return !!opt && URGENT_TAGS.has(opt.label.toLowerCase());
+    const opt = field.options?.find((o) => o.id === value || o.label === value);
+    const label = opt?.label ?? (typeof value === "string" ? value : "");
+    return URGENT_TAGS.has(label.toLowerCase());
   }
   if (field.type === "multiSelect" && Array.isArray(value)) {
     return value.some((id) => {
-      const opt = field.options?.find((o) => o.id === id);
-      return !!opt && URGENT_TAGS.has(opt.label.toLowerCase());
+      const opt = field.options?.find((o) => o.id === id || o.label === id);
+      const label = opt?.label ?? id;
+      return URGENT_TAGS.has(label.toLowerCase());
     });
   }
   // checkbox named urgent
@@ -58,15 +61,38 @@ function fieldValueIsUrgent(field: Field, value: unknown): boolean {
   return false;
 }
 
-function isFieldDeadlineSoon(field: Field, value: unknown): boolean {
-  if (field.type !== "date" && field.type !== "dateTime") return false;
-  if (!value) return false;
+function getDeadlineUrgency(field: Field, value: unknown, table?: DatabaseTable): { priority: number; message: string } | null {
+  if (field.type !== "date" && field.type !== "dateTime") return null;
+  if (!value) return null;
   const start = typeof value === "string" ? value : (value as any)?.start;
-  if (!start) return false;
+  if (!start) return null;
   const t = new Date(start).getTime();
-  if (isNaN(t)) return false;
-  const days = (t - Date.now()) / (1000 * 60 * 60 * 24);
-  return days <= 7;
+  if (isNaN(t)) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(t);
+  target.setHours(0, 0, 0, 0);
+  const days = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const key = `${field.key} ${field.name} ${table?.type ?? ""}`.toLowerCase();
+  const longHorizon = /expiry|expire|warranty|renewal|subscription|license|passport|visa/.test(key);
+  const eventHorizon = /deadline|due|appointment|event|date|scheduled|planned|end/.test(key);
+
+  if (days < 0) {
+    return { priority: 3, message: `${field.name}: overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"}` };
+  }
+  if (days === 0) {
+    return { priority: 3, message: `${field.name}: due today` };
+  }
+  if (days <= 7) {
+    return { priority: 3, message: `${field.name}: due in ${days} day${days === 1 ? "" : "s"}` };
+  }
+  if (longHorizon && days <= 90) {
+    return { priority: days <= 30 ? 2 : 1, message: `${field.name}: due in ${days} days` };
+  }
+  if (eventHorizon && days <= 14) {
+    return { priority: 1, message: `${field.name}: due in ${days} days` };
+  }
+  return null;
 }
 
 export async function buildUrgentIndex(): Promise<UrgentItem[]> {
@@ -79,16 +105,17 @@ export async function buildUrgentIndex(): Promise<UrgentItem[]> {
 
   const workspaceById = new Map(workspaces.map((w) => [w.id, w]));
   const tableById = new Map(tables.map((t) => [t.id, t]));
-  const fieldsByWorkspace = new Map<string, Field[]>();
+  const fieldsByTable = new Map<string, Field[]>();
   for (const f of fields) {
-    const a = fieldsByWorkspace.get(f.workspaceId ?? "") ?? [];
+    const a = fieldsByTable.get(f.tableId ?? "") ?? [];
     a.push(f);
-    fieldsByWorkspace.set(f.workspaceId ?? "", a);
+    fieldsByTable.set(f.tableId ?? "", a);
   }
 
   const out: UrgentItem[] = [];
 
   for (const r of records) {
+    if (r.archived) continue;
     const wk = workspaceById.get(r.workspaceId ?? "");
     const tb = tableById.get(r.tableId ?? "");
     
@@ -108,14 +135,16 @@ export async function buildUrgentIndex(): Promise<UrgentItem[]> {
         priority: 2, 
         createdAt: r.updatedAt ?? now(),
         workspaceName: wk?.name,
-        tableName: tb?.name
+        tableName: tb?.name,
+        recordTitle: r.title,
+        isSensitive: r.isSensitive,
       });
     }
 
     // field values
-    const fs = fieldsByWorkspace.get(r.workspaceId ?? "") ?? [];
+    const fs = fieldsByTable.get(r.tableId ?? "") ?? [];
     for (const f of fs) {
-      const v = (r.fields ?? {})[f.id];
+      const v = getRecordFieldValue(r, f);
       if (v == null || v === "") continue;
       
       if (fieldValueIsUrgent(f, v)) {
@@ -127,20 +156,25 @@ export async function buildUrgentIndex(): Promise<UrgentItem[]> {
           priority: 2, 
           createdAt: r.updatedAt ?? now(),
           workspaceName: wk?.name,
-          tableName: tb?.name
+          tableName: tb?.name,
+          recordTitle: r.title,
+          isSensitive: r.isSensitive,
         });
       }
       
-      if (isFieldDeadlineSoon(f, v)) {
+      const deadline = getDeadlineUrgency(f, v, tb);
+      if (deadline) {
         out.push({ 
           id: `dl:${r.id}:${f.id}`, 
           sourceType: 'deadline', 
           sourceRef: { ...baseSourceRef, fieldId: f.id }, 
-          message: `${f.name}: Due soon`, 
-          priority: 1, 
+          message: deadline.message, 
+          priority: deadline.priority, 
           createdAt: r.updatedAt ?? now(),
           workspaceName: wk?.name,
-          tableName: tb?.name
+          tableName: tb?.name,
+          recordTitle: r.title,
+          isSensitive: r.isSensitive,
         });
       }
       
@@ -154,7 +188,9 @@ export async function buildUrgentIndex(): Promise<UrgentItem[]> {
           priority: 2, 
           createdAt: r.updatedAt ?? now(),
           workspaceName: wk?.name,
-          tableName: tb?.name
+          tableName: tb?.name,
+          recordTitle: r.title,
+          isSensitive: r.isSensitive,
         });
       }
     }
@@ -172,14 +208,26 @@ export async function buildUrgentIndex(): Promise<UrgentItem[]> {
           priority: 1, 
           createdAt: r.updatedAt ?? now(),
           workspaceName: wk?.name,
-          tableName: tb?.name
+          tableName: tb?.name,
+          recordTitle: r.title,
+          isSensitive: r.isSensitive,
         });
       });
     }
   }
 
-  // derived items are returned directly for UI consumption
-  return out;
+  return out.sort((left, right) => right.priority - left.priority || right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function refreshUrgentIndex(): Promise<UrgentItem[]> {
+  const items = await buildUrgentIndex();
+  await db.transaction("rw", db.urgentItems, async () => {
+    await db.urgentItems.clear();
+    if (items.length > 0) {
+      await db.urgentItems.bulkPut(items);
+    }
+  });
+  return items;
 }
 
 let _urgentInterval: number | null = null;
@@ -187,8 +235,8 @@ export function startUrgentIndexer(intervalMs = 5000) {
   if (typeof window === 'undefined') return () => {};
   if (_urgentInterval) return () => { if (_urgentInterval) clearInterval(_urgentInterval); };
   // run immediately then schedule
-  void buildUrgentIndex();
-  _urgentInterval = window.setInterval(() => void buildUrgentIndex(), intervalMs) as any;
+  void refreshUrgentIndex();
+  _urgentInterval = window.setInterval(() => void refreshUrgentIndex(), intervalMs) as any;
   return () => { if (_urgentInterval) { clearInterval(_urgentInterval); _urgentInterval = null; } };
 }
 

@@ -69,6 +69,7 @@ function formatValue(v: unknown, f: Field): string {
     const opts = f.options ?? [];
     return (v as string[]).map((id) => opts.find((o) => o.id === id)?.label ?? "").filter(Boolean).join(", ");
   }
+  if (f.type === "relation" && Array.isArray(v)) return (v as string[]).join(", ");
   if (f.type === "select") return f.options?.find((o) => o.id === v)?.label ?? "";
   if (f.type === "checkbox") return (v ? "true" : "false");
   return String(v);

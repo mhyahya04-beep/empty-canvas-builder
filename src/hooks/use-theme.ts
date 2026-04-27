@@ -62,7 +62,6 @@ export function useTheme() {
       if (typeof s.serifHeadings === "boolean" && s.serifHeadings !== serif) setSerif(s.serifHeadings);
       if (typeof s.compactMode === "boolean" && s.compactMode !== compact) setCompact(s.compactMode);
     }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // React to system color scheme changes when on "system"

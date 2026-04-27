@@ -1,62 +1,23 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { AppShell } from "@/components/layout/AppShell";
-import { useItemsStore } from "@/stores/items-store";
-import { ItemCard } from "@/components/items/ItemCard";
-import { itemIsArchived } from "@/models/item";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { AppShell } from "@/components/app-shell";
 
-export const Route = createFileRoute("/subjects/$subjectId")({
-  component: () => (
-    <AppShell>
-      <SubjectPage />
-    </AppShell>
-  ),
-  notFoundComponent: () => (
-    <AppShell>
-      <div className="mx-auto max-w-3xl px-6 py-16 text-center">
-        <h1 className="font-serif text-2xl font-semibold">Subject not found</h1>
-        <Link to="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-          Back to dashboard
-        </Link>
-      </div>
-    </AppShell>
-  ),
+export const Route = (createFileRoute as any)("/subjects/$subjectId")({
+  component: LegacySubjectRoute,
 });
 
-function SubjectPage() {
-  const { subjectId } = Route.useParams();
-  const items = useItemsStore((s) => s.items);
-  const subject = items.find((item) => item.id === subjectId && item.type === "subject");
-
-  if (!subject) throw notFound();
-
-  const children = items.filter((item) => item.subjectId === subjectId && !itemIsArchived(item));
-
+function LegacySubjectRoute() {
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <div className="mb-8">
-        <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
-          &larr; Dashboard
+    <AppShell>
+      <div className="mx-auto flex h-full max-w-3xl flex-1 flex-col items-center justify-center px-8 py-16 text-center">
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Legacy Subject Routes Were Retired</h1>
+        <p className="mt-3 max-w-xl text-sm text-muted-foreground">
+          Subject and topic pages from the old study-vault system were migrated into the unified workspaces.
+          Use the Personal Knowledge Vault or General Notes workspaces to continue editing those records.
+        </p>
+        <Link to="/" className="mt-6 inline-flex items-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+          Return Home
         </Link>
-        <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight">{subject.title}</h1>
-        {subject.description && (
-          <p className="mt-2 text-sm text-muted-foreground">{subject.description}</p>
-        )}
-        <div className="mt-2 text-xs text-muted-foreground">
-          {children.length} {children.length === 1 ? "item" : "items"}
-        </div>
       </div>
-
-      {children.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          No items in this subject yet.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {children.map((child) => (
-            <ItemCard key={child.id} item={child} />
-          ))}
-        </div>
-      )}
-    </div>
+    </AppShell>
   );
 }

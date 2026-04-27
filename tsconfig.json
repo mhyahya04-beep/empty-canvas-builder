@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2022",
     "module": "ESNext",
     "lib": [
@@ -19,5 +20,22 @@
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "src/**/__tests__/**",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/components/items/**",
+    "src/components/layout/**",
+    "src/components/ui/resizable.tsx",
+    "src/features/dashboard/**",
+    "src/features/editors/**",
+    "src/stores/**",
+    "src/data/imported/**",
+    "src/lib/db/tauri-fs-adapter.ts",
+    "src/lib/exporters/**",
+    "src/lib/importers/**",
+    "src/lib/platform/**",
+    "src/lib/sync/**"
   ]
 }
